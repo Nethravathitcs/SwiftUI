@@ -1,125 +1,151 @@
-struct ContentView: View {
-    @StateObject private var viewModel = OTPViewModel()
-        
-        var body: some View {
-            VStack(spacing: 20) {
-                Text("Enter OTP")
-                    .font(.largeTitle)
-                    .fontWeight(.bold)
-                
-                HStack(spacing: 10) {
-                    ForEach(0..<viewModel.otpCount, id: \.self) { index in
-                        OTPTextField(index: index, text: "", viewModel: viewModel, isFocused: true)
-//                            .onTapGesture {
-//                                viewModel.currentFocus = index
-//                            }
-                    }
-                }
-                
-                Button(action: viewModel.verifyOTP) {
-                    Text("Verify OTP")
-                        .font(.headline)
-                        .foregroundColor(.white)
-                        .frame(width: 200, height: 50)
-                        .background(viewModel.isOTPComplete ? Color.blue : Color.gray)
-                        .cornerRadius(10)
-                }
-                .disabled(!viewModel.isOTPComplete)
-                
-                if let error = viewModel.errorMessage {
-                    Text(error)
-                        .foregroundColor(.red)
-                        .font(.footnote)
-                }
-            }
-            .padding()
-            .onAppear {
-                viewModel.listenForPaste()
-            }
-        }
-}
-struct OTPTextField: View {
-    let index : Int
-    @Binding var text: String
-    @ObservedObject var viewModel: OTPViewModel
-    @FocusState private var isFocused: Bool
+import SwiftUI
+import Combine
+ 
+struct OTPInputView: View {
+    @State public var otp: [String] = Array(repeating: "", count: 6)
+    @FocusState public var currentIndex: Int? // Use FocusState for managing focus
+    @State public var timerValue = 10
+    @State public var isResendEnabled = false
+    @State public var timerCancellable: Cancellable?
+    
+    var onCompleted: (String) -> Void
+    var onResend: () -> Void // Resend callback
     
     var body: some View {
-        TextField("", text: $text, onEditingChanged: {isEditing in
-            if isEditing{
-                viewModel.currentFocus = index
-            }
-        })
-            .keyboardType(.numberPad)
-            .multilineTextAlignment(.center)
-            .frame(width: 50, height: 50)
-            .background(RoundedRectangle(cornerRadius: 10).stroke(isFocused ? Color.blue : Color.gray, lineWidth: 2))
-            .font(.title)
-//            .onReceive(text.publisher.collect()) {
-//                if let first = $0.first, $0.count > 1 {
-//                    text = String(first) // Allow only one digit
-//                }
-//            }
-            .onChange(of: viewModel.otp[index]) { newValue in
-                        if newValue.count > 1 {
-                            viewModel.otp[index] = String(newValue.prefix(1))
+        VStack(spacing: 20) {
+            // OTP Inputs
+            HStack(spacing: 12) {
+                ForEach(0..<6, id: \.self) { index in
+                    TextField("", text: $otp[index])
+                        .frame(width: 50, height: 50)
+                        .background(currentIndex == index ? Color.blue.opacity(0.3) : Color.gray.opacity(0.1)) // Focus color change
+                        .cornerRadius(8)
+                        .multilineTextAlignment(.center)
+                        .keyboardType(.numberPad)
+                        .onChange(of: otp[index]) { newValue in
+                            // Properly handle changes for each OTP field
+                            handleOTPChange(for: index, newValue: newValue)
                         }
-                        if !newValue.isEmpty && index < viewModel.otpCount - 1 {
-                            viewModel.currentFocus = index + 1
+                        .focused($currentIndex, equals: index) // Use @FocusState here
+                        .onTapGesture {
+                            // Lock focus to middle: Only allow focusing on non-empty fields
+                            if !otp[index].isEmpty {
+                                currentIndex = index
+                            }
                         }
-                    }
-                    .onChange(of: viewModel.currentFocus) { newFocus in
-                        isFocused = (newFocus == index)
-                    }
-                    .onReceive(NotificationCenter.default.publisher(for: UITextField.textDidChangeNotification)) { _ in
-                        if viewModel.otp[index].isEmpty, viewModel.lastDeletedIndex == index, index > 0 {
-                            viewModel.otp[index - 1] = ""
-                            viewModel.currentFocus = index - 1
-                        }
-                    }
-                    .onKeyPress { key in
-                        if key == .delete, viewModel.otp[index].isEmpty, index > 0 {
-                            viewModel.lastDeletedIndex = index - 1
-                            viewModel.currentFocus = index - 1
-                        }
-                    }
                 }
-}
-class OTPViewModel: ObservableObject {
-    @Published var otp: [String] = Array(repeating: "", count: 6)
-    @Published var currentFocus: Int? = 0
-    @Published var errorMessage: String?
-    
-    let otpCount = 6
-    
-    var isOTPComplete: Bool {
-        !otp.contains("")
-    }
-    
-    /// Function to verify the OTP (dummy logic)
-    func verifyOTP() {
-        let enteredOTP = otp.joined()
-        if enteredOTP == "123456" { // Example valid OTP
-            errorMessage = nil
-            print("OTP Verified Successfully")
-        } else {
-            errorMessage = "Invalid OTP. Try again."
+            }
+            
+            // Timer View
+            Text("\(timerValue):00")
+                .font(.headline)
+                .foregroundColor(.blue)
+            
+            // Resend Button
+            Button(action: resendOTP) {
+                Text("Resend OTP")
+                    .foregroundColor(.white)
+                    .padding()
+                    .background(isResendEnabled ? Color.blue : Color.gray)
+                    .cornerRadius(8)
+            }
+            .disabled(!isResendEnabled)
+        }
+        .padding()
+        .onAppear {
+            startTimer()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
+            // Detect Delete key press (the backspace key in a custom numeric keyboard)
+            handleDeleteKeyPress()
         }
     }
     
-    /// Listen for OTP paste from clipboard
-    func listenForPaste() {
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            if let clipboardString = UIPasteboard.general.string, clipboardString.count == self.otpCount, clipboardString.allSatisfy({ $0.isNumber }) {
-                self.otp = clipboardString.map { String($0) }
-                self.currentFocus = nil // Dismiss keyboard
+    // Handle OTP input and focus movement
+    public func handleOTPChange(for index: Int, newValue: String) {
+        // If user tries to enter more than one character, take the last one
+        if newValue.count > 1 {
+            otp[index] = String(newValue.last!)
+        }
+        
+        // Move focus to the next empty field after entering a value
+        if newValue.count == 1 {
+            if let nextEmptyIndex = otp.firstIndex(of: "") {
+                currentIndex = nextEmptyIndex
+            }
+        }
+        
+        // Handle delete behavior: Move focus to the last filled field and delete from there
+        if newValue.isEmpty {
+            // Find the last filled field
+            if let lastFilledIndex = otp.lastIndex(where: { !$0.isEmpty }) {
+                currentIndex = lastFilledIndex
+            }
+        }
+        
+        // If all OTP fields are filled, trigger the completion callback
+        let enteredOTP = otp.joined()
+        if enteredOTP.count == otp.count {
+            onCompleted(enteredOTP)
+            
+        }
+    }
+    
+    // Handle delete key press to delete OTP value
+    public func handleDeleteKeyPress() {
+        if let currentIndex = currentIndex {
+            // If the current field has a value, delete it and shift focus
+            if !otp[currentIndex].isEmpty {
+                otp[currentIndex] = "" // Clear the current field value
+                moveFocusToLastFilledField()
             }
         }
     }
+    
+    // Move focus to the last filled OTP field
+    public func moveFocusToLastFilledField() {
+        // Find the last filled field
+        if let lastFilledIndex = otp.lastIndex(where: { !$0.isEmpty }) {
+            self.currentIndex = lastFilledIndex
+        }
+    }
+    
+    // Start the timer countdown
+    public func startTimer() {
+        timerCancellable?.cancel() // Cancel previous timer if any
+        timerValue = 10
+        isResendEnabled = false
+        timerCancellable = Timer.publish(every: 1, on: .main, in: .common)
+            .autoconnect()
+            .sink { _ in
+                if self.timerValue > 0 {
+                    self.timerValue -= 1
+                } else {
+                    // Set resend button to enabled immediately when timer reaches 0
+                    self.isResendEnabled = true
+                    self.timerCancellable?.cancel() // Stop the timer
+                }
+            }
+    }
+    
+    // Handle OTP resend with callback
+    public func resendOTP() {
+        onResend()    // Trigger the resend callback (e.g., API call for a new OTP)
+        startTimer() // Restart the timer when OTP is resent
+        print("OTP resent.")
+    }
 }
-
-struct ContentView_Previews: PreviewProvider {
+ 
+struct OTPInputView_Previews: PreviewProvider {
     static var previews: some View {
-        ContentView()
+        OTPInputView(
+            onCompleted: { otp in
+                print("OTP entered: \(otp)")
+            },
+            onResend: {
+                // Simulate network call for resending OTP
+                print("Resend OTP request initiated.")
+            }
+        )
     }
 }
