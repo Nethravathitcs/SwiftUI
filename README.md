@@ -1,151 +1,139 @@
+//
+//  InputOTP-6digit.swift
+//  BusinessOnlineCore
+//
+//  Created by MohamedRIZW on 20/01/2025.
+//
+
 import SwiftUI
-import Combine
- 
-struct OTPInputView: View {
-    @State public var otp: [String] = Array(repeating: "", count: 6)
-    @FocusState public var currentIndex: Int? // Use FocusState for managing focus
-    @State public var timerValue = 10
-    @State public var isResendEnabled = false
-    @State public var timerCancellable: Cancellable?
+
+
+public struct InputOTP_6digit: View {
     
-    var onCompleted: (String) -> Void
-    var onResend: () -> Void // Resend callback
+    let inputFieldCount: Int = 6
+    let isSecureField: Bool = false
+    let isShowTimer: Bool = true
+    let isShowResendCode: Bool = true
+    @State var oldValue: String = ""
+    @State var enteredValue: [String]
+    @Binding public var isError: Bool
+    @FocusState public var isFocussed: Bool
+    @FocusState private var focussedState: Int?
+    let keyboardType: UIKeyboardType
+    let fieldWidth: CGFloat = (UIScreen.main.bounds.width - (2*DesignConstants.Spacings.defaultHorizontalMargin) - 50)/6.0
     
-    var body: some View {
-        VStack(spacing: 20) {
-            // OTP Inputs
-            HStack(spacing: 12) {
-                ForEach(0..<6, id: \.self) { index in
-                    TextField("", text: $otp[index])
-                        .frame(width: 50, height: 50)
-                        .background(currentIndex == index ? Color.blue.opacity(0.3) : Color.gray.opacity(0.1)) // Focus color change
-                        .cornerRadius(8)
-                        .multilineTextAlignment(.center)
-                        .keyboardType(.numberPad)
-                        .onChange(of: otp[index]) { newValue in
-                            // Properly handle changes for each OTP field
-                            handleOTPChange(for: index, newValue: newValue)
-                        }
-                        .focused($currentIndex, equals: index) // Use @FocusState here
-                        .onTapGesture {
-                            // Lock focus to middle: Only allow focusing on non-empty fields
-                            if !otp[index].isEmpty {
-                                currentIndex = index
-                            }
-                        }
-                }
-            }
-            
-            // Timer View
-            Text("\(timerValue):00")
-                .font(.headline)
-                .foregroundColor(.blue)
-            
-            // Resend Button
-            Button(action: resendOTP) {
-                Text("Resend OTP")
-                    .foregroundColor(.white)
-                    .padding()
-                    .background(isResendEnabled ? Color.blue : Color.gray)
-                    .cornerRadius(8)
-            }
-            .disabled(!isResendEnabled)
-        }
-        .padding()
-        .onAppear {
-            startTimer()
-        }
-        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
-            // Detect Delete key press (the backspace key in a custom numeric keyboard)
-            handleDeleteKeyPress()
-        }
+    init(isError: Binding<Bool> = .constant(false),
+         isFocussed: Bool = false, keyboardType: UIKeyboardType = .numberPad) {
+        self.enteredValue = Array(repeating: "", count: inputFieldCount)
+        self._isError = isError
+        self.keyboardType = keyboardType
+        self.isFocussed = isFocussed
     }
-    
-    // Handle OTP input and focus movement
-    public func handleOTPChange(for index: Int, newValue: String) {
-        // If user tries to enter more than one character, take the last one
-        if newValue.count > 1 {
-            otp[index] = String(newValue.last!)
-        }
-        
-        // Move focus to the next empty field after entering a value
-        if newValue.count == 1 {
-            if let nextEmptyIndex = otp.firstIndex(of: "") {
-                currentIndex = nextEmptyIndex
+    public var body: some View {
+        VStack(alignment: .center, spacing: 20.0) {
+            prepareInputOtpPinView()
+            if isShowTimer {
+                prepareTimerField()
+            }
+            if isShowResendCode {
+                prepareResendCodeButton()
             }
         }
-        
-        // Handle delete behavior: Move focus to the last filled field and delete from there
-        if newValue.isEmpty {
-            // Find the last filled field
-            if let lastFilledIndex = otp.lastIndex(where: { !$0.isEmpty }) {
-                currentIndex = lastFilledIndex
-            }
-        }
-        
-        // If all OTP fields are filled, trigger the completion callback
-        let enteredOTP = otp.joined()
-        if enteredOTP.count == otp.count {
-            onCompleted(enteredOTP)
-            
-        }
-    }
-    
-    // Handle delete key press to delete OTP value
-    public func handleDeleteKeyPress() {
-        if let currentIndex = currentIndex {
-            // If the current field has a value, delete it and shift focus
-            if !otp[currentIndex].isEmpty {
-                otp[currentIndex] = "" // Clear the current field value
-                moveFocusToLastFilledField()
-            }
-        }
-    }
-    
-    // Move focus to the last filled OTP field
-    public func moveFocusToLastFilledField() {
-        // Find the last filled field
-        if let lastFilledIndex = otp.lastIndex(where: { !$0.isEmpty }) {
-            self.currentIndex = lastFilledIndex
-        }
-    }
-    
-    // Start the timer countdown
-    public func startTimer() {
-        timerCancellable?.cancel() // Cancel previous timer if any
-        timerValue = 10
-        isResendEnabled = false
-        timerCancellable = Timer.publish(every: 1, on: .main, in: .common)
-            .autoconnect()
-            .sink { _ in
-                if self.timerValue > 0 {
-                    self.timerValue -= 1
-                } else {
-                    // Set resend button to enabled immediately when timer reaches 0
-                    self.isResendEnabled = true
-                    self.timerCancellable?.cancel() // Stop the timer
-                }
-            }
-    }
-    
-    // Handle OTP resend with callback
-    public func resendOTP() {
-        onResend()    // Trigger the resend callback (e.g., API call for a new OTP)
-        startTimer() // Restart the timer when OTP is resent
-        print("OTP resent.")
     }
 }
- 
-struct OTPInputView_Previews: PreviewProvider {
-    static var previews: some View {
-        OTPInputView(
-            onCompleted: { otp in
-                print("OTP entered: \(otp)")
-            },
-            onResend: {
-                // Simulate network call for resending OTP
-                print("Resend OTP request initiated.")
+
+extension InputOTP_6digit {
+    func prepareTimerField() -> some View {
+        Text("01:00")
+            .fontToken(.typographyHeader05Neutral)
+            .foregroundStyle(Color.compFormInputFieldLabelContainerLabelTextColorDefault)
+    }
+    
+    func prepareResendCodeButton() -> some View {
+        LinkButton(.init(title: "Resend Code", onTapAction: {
+            
+        }))
+    }
+    
+    func prepareInputOtpPinView() -> some View {
+        HStack(alignment: .center) {
+            ForEach(0..<inputFieldCount, id: \.self) { index in
+                Group {
+                    if isSecureField {
+                        SecureField("", text: $enteredValue[index])
+                    } else {
+                        TextField("", text: $enteredValue[index], onEditingChanged: { editing in
+                            if editing {
+                                oldValue = enteredValue[index]
+                            }
+                        })
+                    }
+                }
+                .keyboardType(keyboardType)
+                .textContentType(.oneTimeCode)
+                .autocorrectionDisabled()
+                .frame(width: fieldWidth, height: fieldWidth*1.2)
+                .background(RoundedRectangle(cornerRadius: DesignConstants.Spacings.cellCornerRadius).fill(Color.compFormInputFieldBackgroundColorDefault))
+                .fontToken(.typographyHeader05Neutral)
+                .foregroundStyle(Color.compFormInputFieldIconColorAlert)
+                .cornerRadius(DesignConstants.CornerRadiuses.cornerRadius10)
+                .focused($isFocussed)
+                .focused($focussedState, equals: index)
+                .overlay {
+                    let status = (isFocussed && focussedState == index)
+                    RoundedRectangle(cornerRadius: DesignConstants.CornerRadiuses.cornerRadius10, style: .circular)
+                        .stroke($isError.wrappedValue ? Color.compFormInputFieldBorderColorAlert : ( status ? Color.compFormInputFieldBorderColorActive : .clear), lineWidth: DesignConstants.Spacings.defaultBorderWidth)
+                }
+                .multilineTextAlignment(.center)
+                .accentColor(.clear)
+                .onChange(of: enteredValue[index]) { newValue in
+                    if enteredValue[index].count > 1 {
+                        let currentValue = Array(enteredValue[index])
+                        if currentValue[0] == Character(oldValue) {
+                            enteredValue[index] = String(enteredValue[index].suffix(1))
+                        } else {
+                            enteredValue[index] = String(enteredValue[index].prefix(1))
+                        }
+
+                    }
+                    print(newValue)
+                    if !newValue.isEmpty {
+                        if index == inputFieldCount - 1 {
+                            focussedState = nil
+                        } else {
+                            focussedState = (focussedState ?? 0) + 1
+                        }
+                    } else {
+                        focussedState = (focussedState ?? 0) - 1
+                    }
+                }
             }
-        )
+        }
+    }
+}
+#Preview {
+    ZStack() {
+        Color.defaultAppBackgroundColor
+            .ignoresSafeArea()
+        InputOTP_6digit()
+    }
+}
+
+extension View {
+    func Print(_ vars: Any...) -> some View {
+        for v in vars { print(v) }
+        return EmptyView()
+    }
+}
+
+struct InputOTP_6digitContentView: View {
+    var body: some View {
+        NavigationView {
+            ZStack() {
+                Color.defaultAppBackgroundColor
+                    .ignoresSafeArea()
+                InputOTP_6digit()
+            }
+        }
     }
 }
