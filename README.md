@@ -1,17 +1,31 @@
 import SwiftUI
 
-struct ContentView: View {
-    @State private var text: String = ""
+class ThemeManager: ObservableObject {
+    @Published var backgroundColor: Color = .blue // Default color
+}
+struct GlobalBackgroundModifier: ViewModifier {
+    @EnvironmentObject var theme: ThemeManager
 
-    var body: some View {
-        TextField("Enter text", text: $text)
-            .textFieldStyle(RoundedBorderTextFieldStyle())
-            .padding()
-            .onChange(of: text) { newValue in
-                let regex = "^[a-zA-Z0-9]*$" // Only letters and numbers
-                if newValue.range(of: regex, options: .regularExpression) == nil {
-                    text = String(text.dropLast()) // Remove last entered invalid character
-                }
-            }
+    func body(content: Content) -> some View {
+        content
+            .background(theme.backgroundColor.ignoresSafeArea()) // Uses dynamic color
     }
 }
+
+extension View {
+    func globalBackground() -> some View {
+        self.modifier(GlobalBackgroundModifier())
+    }
+}
+@main
+struct MyApp: App {
+    @StateObject private var theme = ThemeManager()
+
+    var body: some Scene {
+        WindowGroup {
+            ContentView()
+                .environmentObject(theme) // Inject the theme
+        }
+    }
+}
+
