@@ -1,42 +1,27 @@
 import SwiftUI
+import Combine
 
-struct ContentView: View {
-    @AppStorage("username") var username: String = "Guest"
+struct KeyboardAdaptive: ViewModifier {
+    @State private var keyboardHeight: CGFloat = 0
+    private var cancellable: AnyCancellable?
 
-    var body: some View {
-        NavigationView {
-            VStack {
-                Text("Current Username: \(username)")
-                    .font(.title)
-
-                NavigationLink("Go to Profile", destination: ProfileView())
+    func body(content: Content) -> some View {
+        content
+            .padding(.bottom, keyboardHeight) // Adjust padding based on keyboard height
+            .onAppear {
+                self.cancellable = NotificationCenter.default
+                    .publisher(for: UIResponder.keyboardWillShowNotification)
+                    .merge(with: NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification))
+                    .sink { notification in
+                        if let frame = notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect {
+                            withAnimation {
+                                self.keyboardHeight = notification.name == UIResponder.keyboardWillShowNotification ? frame.height : 0
+                            }
+                        }
+                    }
             }
-            .padding()
-        }
-    }
-}
-
-struct ProfileView: View {
-    @AppStorage("username") var username: String = "Guest"
-
-    var body: some View {
-        VStack {
-            Text("Profile Username: \(username)")
-                .font(.title)
-
-            Button("Change Username") {
-                username = "NewUser123"
+            .onDisappear {
+                cancellable?.cancel()
             }
-        }
-        .padding()
-    }
-}
-
-@main
-struct MyApp: App {
-    var body: some Scene {
-        WindowGroup {
-            ContentView()
-        }
     }
 }
