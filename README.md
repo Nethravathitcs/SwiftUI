@@ -1,27 +1,71 @@
 import SwiftUI
-import Combine
 
-struct KeyboardAdaptive: ViewModifier {
-    @State private var keyboardHeight: CGFloat = 0
-    private var cancellable: AnyCancellable?
+struct ActivationView: View {
+    @State private var subscriberID: String = ""
+    @State private var userID: String = ""
+    @FocusState private var focusedField: Field?
 
-    func body(content: Content) -> some View {
-        content
-            .padding(.bottom, keyboardHeight) // Adjust padding based on keyboard height
-            .onAppear {
-                self.cancellable = NotificationCenter.default
-                    .publisher(for: UIResponder.keyboardWillShowNotification)
-                    .merge(with: NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification))
-                    .sink { notification in
-                        if let frame = notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect {
-                            withAnimation {
-                                self.keyboardHeight = notification.name == UIResponder.keyboardWillShowNotification ? frame.height : 0
-                            }
-                        }
+    enum Field {
+        case subscriberID, userID
+    }
+
+    var body: some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(spacing: 20) {
+                    Text("Welcome! Let's start by activating your device")
+                        .font(.title2)
+                        .bold()
+                        .multilineTextAlignment(.center)
+                        .padding()
+
+                    Text("Check the welcome email and enter the following details")
+                        .font(.body)
+                        .foregroundColor(.gray)
+                        .multilineTextAlignment(.center)
+
+                    VStack(alignment: .leading) {
+                        Text("Subscriber ID")
+                            .font(.headline)
+                        TextField("Enter subscriber ID", text: $subscriberID)
+                            .textFieldStyle(RoundedBorderTextFieldStyle())
+                            .focused($focusedField, equals: .subscriberID)
+                            .id(Field.subscriberID)
                     }
+                    .padding(.horizontal)
+
+                    VStack(alignment: .leading) {
+                        Text("User ID")
+                            .font(.headline)
+                        TextField("Enter user ID", text: $userID)
+                            .textFieldStyle(RoundedBorderTextFieldStyle())
+                            .focused($focusedField, equals: .userID)
+                            .id(Field.userID)
+                    }
+                    .padding(.horizontal)
+
+                    Button("Continue") {
+                        // Handle continue action
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .padding()
+
+                }
+                .padding(.top, 50)
             }
-            .onDisappear {
-                cancellable?.cancel()
+            .onChange(of: focusedField) { newFocus in
+                if let field = newFocus {
+                    withAnimation {
+                        proxy.scrollTo(field, anchor: .center)
+                    }
+                }
             }
+        }
+    }
+}
+
+struct ActivationView_Previews: PreviewProvider {
+    static var previews: some View {
+        ActivationView()
     }
 }
