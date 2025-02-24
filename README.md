@@ -1,71 +1,47 @@
 import SwiftUI
 
-struct ActivationView: View {
-    @State private var subscriberID: String = ""
-    @State private var userID: String = ""
-    @FocusState private var focusedField: Field?
-
-    enum Field {
-        case subscriberID, userID
-    }
-
+struct SmartPassPINScreen: View {
+    @StateObject private var viewModel = SmartPassPINViewModel()
+    
     var body: some View {
-        ScrollViewReader { proxy in
-            ScrollView {
-                VStack(spacing: 20) {
-                    Text("Welcome! Let's start by activating your device")
-                        .font(.title2)
-                        .bold()
-                        .multilineTextAlignment(.center)
-                        .padding()
-
-                    Text("Check the welcome email and enter the following details")
-                        .font(.body)
-                        .foregroundColor(.gray)
-                        .multilineTextAlignment(.center)
-
-                    VStack(alignment: .leading) {
-                        Text("Subscriber ID")
-                            .font(.headline)
-                        TextField("Enter subscriber ID", text: $subscriberID)
-                            .textFieldStyle(RoundedBorderTextFieldStyle())
-                            .focused($focusedField, equals: .subscriberID)
-                            .id(Field.subscriberID)
-                    }
-                    .padding(.horizontal)
-
-                    VStack(alignment: .leading) {
-                        Text("User ID")
-                            .font(.headline)
-                        TextField("Enter user ID", text: $userID)
-                            .textFieldStyle(RoundedBorderTextFieldStyle())
-                            .focused($focusedField, equals: .userID)
-                            .id(Field.userID)
-                    }
-                    .padding(.horizontal)
-
-                    Button("Continue") {
-                        // Handle continue action
-                    }
-                    .buttonStyle(.borderedProminent)
+        VStack(spacing: 20) {
+            Text("Set up your Smart Pass PIN")
+                .font(.title)
+                .bold()
+            
+            Text("Choose a new 4-digit PIN to make transactions, submit requests, and access security settings.")
+                .multilineTextAlignment(.center)
+                .padding()
+            
+            SecureField("Enter PIN", text: $viewModel.enterPIN)
+                .keyboardType(.numberPad)
+                .textFieldStyle(RoundedBorderTextFieldStyle())
+                .accessibilityIdentifier("enterPINField")
+            
+            SecureField("Confirm PIN", text: $viewModel.confirmPIN)
+                .keyboardType(.numberPad)
+                .textFieldStyle(RoundedBorderTextFieldStyle())
+                .accessibilityIdentifier("confirmPINField")
+            
+            if !viewModel.errorMessage.isEmpty {
+                Text(viewModel.errorMessage)
+                    .foregroundColor(.red)
+                    .accessibilityIdentifier("errorMessageLabel")
+            }
+            
+            Button(action: viewModel.validatePIN) {
+                Text("Set PIN")
                     .padding()
-
-                }
-                .padding(.top, 50)
+                    .frame(maxWidth: .infinity)
+                    .background(Color.blue)
+                    .foregroundColor(.white)
+                    .cornerRadius(10)
             }
-            .onChange(of: focusedField) { newFocus in
-                if let field = newFocus {
-                    withAnimation {
-                        proxy.scrollTo(field, anchor: .center)
-                    }
-                }
-            }
+            .disabled(viewModel.enterPIN.count != 4 || viewModel.confirmPIN.count != 4)
+            .accessibilityIdentifier("setPINButton")
+            
+            Spacer()
         }
-    }
-}
-
-struct ActivationView_Previews: PreviewProvider {
-    static var previews: some View {
-        ActivationView()
+        .padding()
     }
 }
