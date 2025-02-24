@@ -1,3 +1,33 @@
+
+
+
+
+import SwiftUI
+
+class SmartPassPINViewModel: ObservableObject {
+    @Published var enterPIN: String = ""
+    @Published var confirmPIN: String = ""
+    @Published var errorMessage: String = ""
+    
+    func validatePIN() {
+        if enterPIN.count == 4 && confirmPIN.count == 4 {
+            if enterPIN == confirmPIN {
+                errorMessage = ""
+                print("PIN set successfully")
+            } else {
+                errorMessage = "PINs do not match"
+            }
+        } else {
+            errorMessage = "Enter a 4-digit PIN"
+        }
+    }
+}
+
+
+
+
+
+
 import SwiftUI
 
 struct SmartPassPINScreen: View {
