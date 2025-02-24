@@ -1,4 +1,52 @@
 
+import XCTest
+
+final class SmartPassPINScreenUITests: XCTestCase {
+    
+    let app = XCUIApplication()
+    
+    override func setUp() {
+        continueAfterFailure = false
+        app.launch()
+    }
+    
+    func testSmartPassPINScreenElements() {
+        // Check if the title exists
+        let title = app.staticTexts["Set up your Smart Pass PIN"]
+        XCTAssertTrue(title.exists, "Title should be present")
+        
+        // Check if the Enter PIN field exists
+        let enterPinField = app.textFields["enterPINField"]
+        XCTAssertTrue(enterPinField.exists, "Enter PIN field should be present")
+        
+        // Check if the Confirm PIN field exists
+        let confirmPinField = app.textFields["confirmPINField"]
+        XCTAssertTrue(confirmPinField.exists, "Confirm PIN field should be present")
+        
+        // Check if the button exists
+        let setPINButton = app.buttons["setPINButton"]
+        XCTAssertTrue(setPINButton.exists, "Set PIN button should be present")
+    }
+    
+    func testPINEntryAndValidation() {
+        let enterPinField = app.textFields["enterPINField"]
+        let confirmPinField = app.textFields["confirmPINField"]
+        let setPINButton = app.buttons["setPINButton"]
+        let errorMessage = app.staticTexts["errorMessageLabel"]
+        
+        // Enter mismatched PINs
+        enterPinField.tap()
+        enterPinField.typeText("1234")
+        
+        confirmPinField.tap()
+        confirmPinField.typeText("5678")
+        
+        setPINButton.tap()
+        
+        // Check for error message
+        XCTAssertTrue(errorMessage.exists, "Error message should be displayed for mismatched PINs")
+    }
+}
 
 
 
