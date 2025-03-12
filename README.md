@@ -1,28 +1,24 @@
 import SwiftUI
 
 struct ContentView: View {
-    @State private var text: String = ""
-
     var body: some View {
-        ScrollView {
-            VStack(spacing: 16) {
-                ForEach(1...20, id: \.self) { index in
-                    Text("Item \(index)")
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color.blue.opacity(0.2))
-                        .cornerRadius(10)
+        VStack {
+            ScrollView {
+                VStack(spacing: 20) {
+                    ForEach(1...50, id: \.self) { index in
+                        Text("Item \(index)")
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(Color.gray.opacity(0.2))
+                            .cornerRadius(10)
+                    }
                 }
-                
-                TextField("Enter text", text: $text)
-                    .textFieldStyle(RoundedBorderTextFieldStyle())
-                    .padding()
+                .padding(.bottom, 60) // Prevents last item from being covered
             }
-            .padding()
-        }
-        .safeAreaInset(edge: .bottom) {
+            
+            // Sticky Button
             Button(action: {
-                print("Button tapped")
+                print("Button Tapped!")
             }) {
                 Text("Sticky Button")
                     .frame(maxWidth: .infinity)
@@ -32,7 +28,8 @@ struct ContentView: View {
                     .cornerRadius(10)
             }
             .padding()
-            .background(.ultraThinMaterial) // Adds a blur effect
+            .background(Color.white) // Background to make it visible
+            .shadow(radius: 3)
         }
     }
 }
